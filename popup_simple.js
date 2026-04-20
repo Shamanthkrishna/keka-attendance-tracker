@@ -223,9 +223,9 @@ class SimpleAT2 {
       if (streak.currentStreak > 0) {
         card.classList.remove('no-streak');
         if (streak.currentStreak >= 10) {
-          labelEl.textContent = "UNSTOPPABLE! You're on fire! ðŸ”¥ðŸ”¥ðŸ”¥";
+          labelEl.textContent = "UNSTOPPABLE! You're on fire! \uD83D\uDD25\uD83D\uDD25\uD83D\uDD25";
         } else if (streak.currentStreak >= 5) {
-          labelEl.textContent = "Amazing streak! Keep it going! ðŸ’ª";
+          labelEl.textContent = "Amazing streak! Keep it going! \uD83D\uDCAA";
         } else {
           labelEl.textContent = "You're on time! Keep it up!";
         }
@@ -267,7 +267,7 @@ class SimpleAT2 {
   applyTheme() {
     document.body.classList.toggle('dark', this.isDarkTheme);
     const btn = document.getElementById('theme-btn');
-    if (btn) btn.textContent = this.isDarkTheme ? 'â˜€ï¸ Theme' : 'ðŸŒ™ Theme';
+    if (btn) btn.textContent = this.isDarkTheme ? '\u2600\uFE0F Theme' : '\uD83C\uDF19 Theme';
   }
 
   // â”€â”€â”€ Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -317,7 +317,7 @@ class SimpleAT2 {
       errorEl.textContent = '';
       const div = document.createElement('div');
       div.className = 'error';
-      div.textContent = 'âš ï¸ ' + message;
+      div.textContent = '\u26A0\uFE0F ' + message;
       errorEl.appendChild(div);
       errorEl.style.display = 'block';
       successEl.style.display = 'none';
@@ -325,7 +325,7 @@ class SimpleAT2 {
       successEl.textContent = '';
       const div = document.createElement('div');
       div.className = 'success';
-      div.textContent = 'âœ… ' + message;
+      div.textContent = '\u2705 ' + message;
       successEl.appendChild(div);
       successEl.style.display = 'block';
       errorEl.style.display = 'none';
