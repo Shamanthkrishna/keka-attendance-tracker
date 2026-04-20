@@ -1,4 +1,4 @@
-# AT2 — Keka Attendance Tracker
+# Keka Attendance Tracker
 
 A Chrome extension that lets you view and export your attendance data directly from the [Keka HRM](https://www.keka.com/) portal — no manual log-digging required.
 
