@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AT2 - Attendance Tracker</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      width: 370px;
+      min-height: 420px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 300;
+    }
+
+    .current-time {
+      text-align: center;
+      font-size: 18px;
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 10px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+    }
+
+    /* ── Streak card (Snapchat-style) ─────────────────────────── */
+    .streak-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: linear-gradient(135deg, #ff9a00 0%, #ff5e00 50%, #ff2d00 100%);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 20px rgba(255, 94, 0, 0.45);
+      position: relative;
+      overflow: hidden;
+    }
+    .streak-card::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 60%);
+      animation: streak-glow 3s ease-in-out infinite alternate;
+    }
+    @keyframes streak-glow {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(10%, 10%) scale(1.1); }
+    }
+    .streak-fire {
+      font-size: 36px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+      animation: fire-bounce 1.2s ease-in-out infinite alternate;
+      z-index: 1;
+    }
+    @keyframes fire-bounce {
+      0% { transform: translateY(0) scale(1); }
+      100% { transform: translateY(-4px) scale(1.08); }
+    }
+    .streak-info {
+      z-index: 1;
+      text-align: left;
+    }
+    .streak-count {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.1;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    }
+    .streak-label {
+      font-size: 12px;
+      opacity: 0.92;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+    .streak-best {
+      z-index: 1;
+      text-align: center;
+      padding-left: 14px;
+      border-left: 1px solid rgba(255,255,255,0.3);
+    }
+    .streak-best-num {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .streak-best-label {
+      font-size: 10px;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .streak-card.no-streak {
+      background: linear-gradient(135deg, #636e72 0%, #2d3436 100%);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .streak-card.no-streak .streak-fire {
+      animation: none;
+      opacity: 0.5;
+    }
+
+    .attendance-card {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 15px;
+      padding: 18px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .time-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .time-row:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .time-label {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .time-value {
+      font-size: 15px;
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+    }
+
+    .progress-section {
+      margin: 16px 0;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+      width: 0%;
+      transition: width 0.3s ease;
+      border-radius: 4px;
+    }
+
+    .progress-text {
+      text-align: center;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px 6px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      font-size: 16px;
+    }
+
+    .error {
+      background: rgba(231, 76, 60, 0.2);
+      border: 1px solid rgba(231, 76, 60, 0.5);
+      padding: 14px;
+      border-radius: 10px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    .success {
+      background: rgba(46, 204, 113, 0.2);
+      border: 1px solid rgba(46, 204, 113, 0.5);
+      padding: 14px;
+      border-radius: 10px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    body.dark {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    }
+    body.dark .streak-card.no-streak {
+      background: linear-gradient(135deg, #2d3436 0%, #1e272e 100%);
+    }
+
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid white;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .overtime {
+      background: rgba(231, 76, 60, 0.2);
+      border: 1px solid rgba(231, 76, 60, 0.5);
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      margin-top: 12px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .time-remaining-box {
+      background: rgba(46, 204, 113, 0.2);
+      border: 1px solid rgba(46, 204, 113, 0.5);
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      margin-top: 12px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .cached-notice {
+      text-align: center;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 8px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>⚡ TimeSync Pro</h1>
+    </div>
+
+    <!-- Current Time -->
+    <div id="current-time" class="current-time">Loading...</div>
+
+    <!-- Streak Card (Snapchat-style) -->
+    <div id="streak-card" class="streak-card" style="display: none;">
+      <div class="streak-fire">🔥</div>
+      <div class="streak-info">
+        <div class="streak-count"><span id="streak-count">0</span> day streak</div>
+        <div class="streak-label" id="streak-label">You're on fire! Keep it up!</div>
+      </div>
+      <div class="streak-best">
+        <div class="streak-best-num" id="streak-best">0</div>
+        <div class="streak-best-label">Best</div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <div>Loading attendance data...</div>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error" style="display: none;"></div>
+
+    <!-- Success Message -->
+    <div id="success" style="display: none;"></div>
+
+    <!-- Cached notice -->
+    <div id="cached-notice" class="cached-notice" style="display: none;"></div>
+
+    <!-- Main Content -->
+    <div id="main-content" style="display: none;">
+      <!-- Attendance Card -->
+      <div class="attendance-card">
+        <div class="time-row">
+          <span class="time-label">Login Time</span>
+          <span id="login-time" class="time-value">--:--:--</span>
+        </div>
+        <div class="time-row">
+          <span class="time-label">Full Day (9h)</span>
+          <span id="logout-9h" class="time-value">--:--:--</span>
+        </div>
+        <div class="time-row">
+          <span class="time-label">Standard (8h 32m)</span>
+          <span id="logout-832" class="time-value">--:--:--</span>
+        </div>
+        <div class="time-row">
+          <span class="time-label">Time Worked</span>
+          <span id="worked-time" class="time-value">0h 0m</span>
+        </div>
+      </div>
+
+      <!-- Progress Section -->
+      <div class="progress-section">
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div id="progress-text" class="progress-text">0% Complete</div>
+      </div>
+
+      <!-- Time Remaining -->
+      <div id="time-remaining" class="time-remaining-box" style="display: none;"></div>
+
+      <!-- Overtime Indicator -->
+      <div id="overtime-indicator" class="overtime" style="display: none;">
+        ⚠️ <span id="overtime-text">Overtime detected</span>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button id="refresh-btn" class="btn">&#x1F504; Refresh</button>
+        <button id="theme-btn" class="btn">&#x1F319; Theme</button>
+        <button id="export-btn" class="btn">&#x1F4CA; Export</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup_simple.js"></script>
+</body>
+</html>

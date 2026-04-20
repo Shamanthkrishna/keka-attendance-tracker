@@ -1,0 +1,43 @@
+⚡ TimeSync Pro - Installation Instructions
+
+🚀 QUICK INSTALL (Takes 30 seconds):
+
+1. Extract this folder if it came as a ZIP file
+
+2. Open Google Chrome
+
+3. Type: chrome://extensions/ (in address bar)
+
+4. Turn ON "Developer mode" (toggle in top-right corner)
+
+5. Click "Load unpacked" button
+
+6. Select the "AT2" folder (this folder with all the files)
+
+7. Done! Look for the ⚡ TimeSync Pro icon in your toolbar
+
+📋 PREREQUISITES:
+✅ Google Chrome browser
+✅ Access to Keka HRM system  
+✅ Login to Keka first, then use extension
+
+🔧 TROUBLESHOOTING:
+- Extension not showing? Check that "Developer mode" is ON
+- No data? Make sure you're logged into Keka first
+- Still issues? Check README.md for detailed help
+
+💡 FIRST USE:
+1. Login to your Keka account in another tab
+2. Click the TimeSync Pro extension icon
+3. Your attendance data will load automatically
+
+🎨 FEATURES:
+⏰ Real-time clock updates
+📊 Progress tracking for your workday  
+🌙 Dark/Light theme toggle
+📥 Export attendance data
+⚡ Fast and modern interface
+
+Questions? Check the README.md file for complete documentation.
+
+Enjoy tracking your attendance! 🎉
