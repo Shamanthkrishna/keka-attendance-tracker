@@ -49,7 +49,7 @@ class SimpleAT2 {
       console.log('Token received, fetching attendance data...');
 
       // 2) Fetch fresh data
-      const attendanceData = await this.fetchAttendanceData(response.token);
+      const attendanceData = await this.fetchAttendanceData(response.token, response.kekaBaseUrl);
 
       // 3) Cache it
       await this.sendMessage({ type: 'CACHE_DATA', data: attendanceData });
@@ -99,8 +99,9 @@ class SimpleAT2 {
     }
   }
 
-  async fetchAttendanceData(token) {
-    const url = 'https://your-subdomain.keka.com/k/attendance/api/mytime/attendance/summary';
+  async fetchAttendanceData(token, kekaBaseUrl) {
+    if (!kekaBaseUrl) throw new Error('Could not detect Keka URL. Make sure you are logged into Keka in a browser tab.');
+    const url = `${kekaBaseUrl}/k/attendance/api/mytime/attendance/summary`;
 
     const response = await fetch(url, {
       headers: {
@@ -266,8 +267,12 @@ class SimpleAT2 {
 
   applyTheme() {
     document.body.classList.toggle('dark', this.isDarkTheme);
-    const btn = document.getElementById('theme-btn');
-    if (btn) btn.textContent = this.isDarkTheme ? '\u2600\uFE0F Theme' : '\uD83C\uDF19 Theme';
+    const moonIcon = document.getElementById('moon-icon');
+    const sunIcon = document.getElementById('sun-icon');
+    if (moonIcon) moonIcon.style.display = this.isDarkTheme ? 'none' : 'block';
+    if (sunIcon) sunIcon.style.display = this.isDarkTheme ? 'block' : 'none';
+    const themeTooltip = document.querySelector('#theme-btn .tooltip');
+    if (themeTooltip) themeTooltip.textContent = this.isDarkTheme ? 'Switch to light' : 'Switch to dark';
   }
 
   // â”€â”€â”€ Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

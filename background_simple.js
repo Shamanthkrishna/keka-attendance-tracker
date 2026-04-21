@@ -38,7 +38,7 @@ async function findKekaToken() {
         const token = results?.[0]?.result;
         if (token) {
           console.log('Token found from Keka tab:', tab.url);
-          return token;
+          return { token, kekaBaseUrl: new URL(tab.url).origin };
         }
       } catch (err) {
         // Tab might not be scriptable â€“ skip
@@ -66,16 +66,16 @@ async function findKekaToken() {
           }
         });
         const token = results?.[0]?.result;
-        if (token) return token;
+        if (token) return { token, kekaBaseUrl: activeTab.url.includes('keka.com') ? new URL(activeTab.url).origin : null };
       } catch (e) {
         console.warn('Active tab not scriptable:', e.message);
       }
     }
 
-    return null;
+    return { token: null, kekaBaseUrl: null };
   } catch (err) {
     console.error('findKekaToken error:', err);
-    return null;
+    return { token: null, kekaBaseUrl: null };
   }
 }
 
@@ -253,11 +253,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GET_TOKEN') {
     // Auto-detect Keka tab (async)
-    findKekaToken().then(token => {
-      sendResponse({ token, success: !!token });
+    findKekaToken().then(({ token, kekaBaseUrl }) => {
+      sendResponse({ token, success: !!token, kekaBaseUrl });
     }).catch(err => {
       console.error('GET_TOKEN error:', err);
-      sendResponse({ token: null, success: false, error: err.message });
+      sendResponse({ token: null, success: false, kekaBaseUrl: null, error: err.message });
     });
     return true; // async
   }
