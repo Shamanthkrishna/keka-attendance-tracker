@@ -1,7 +1,7 @@
-﻿// AT2 Advanced Attendance Tracker - Background Service Worker
+// AT2 Advanced Attendance Tracker - Background Service Worker
 console.log('AT2 Background script loaded');
 
-// â”€â”€â”€ Badge helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Badge helpers -----------------------------------------------------------
 function setBadge(text, color) {
   chrome.action.setBadgeText({ text: String(text) });
   chrome.action.setBadgeBackgroundColor({ color: color || '#667eea' });
@@ -11,11 +11,28 @@ function clearBadge() {
   chrome.action.setBadgeText({ text: '' });
 }
 
-// â”€â”€â”€ Auto-detect Keka tab (searches ALL tabs, not just active) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Token management --------------------------------------------------------
+const TOKEN_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
+
+// Check stored token first (saved by content.js even when Keka tab is closed),
+// then fall back to scripting a live Keka tab.
 async function findKekaToken() {
   try {
+    // 1) Use token saved by content script (works without Keka open)
+    const stored = await chrome.storage.local.get(['at2_token', 'at2_token_ts', 'at2_keka_origin']);
+    if (stored.at2_token && stored.at2_keka_origin) {
+      const age = Date.now() - (stored.at2_token_ts || 0);
+      if (age < TOKEN_MAX_AGE_MS) {
+        console.log('Token from storage (age:', Math.round(age / 60000), 'min)');
+        return { token: stored.at2_token, kekaBaseUrl: stored.at2_keka_origin };
+      }
+      // Expired — clear it and fall through to live tab
+      await chrome.storage.local.remove(['at2_token', 'at2_token_ts', 'at2_keka_origin']);
+      console.log('Stored token expired, falling back to live tab');
+    }
+
+    // 2) Script live Keka tabs
     const tabs = await chrome.tabs.query({});
-    // Prioritise keka.com tabs
     const kekaTabs = tabs.filter(t => t.url && t.url.includes('keka.com'));
 
     for (const tab of kekaTabs) {
@@ -23,13 +40,9 @@ async function findKekaToken() {
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => {
-            const possibleKeys = ['access_token', 'authToken', 'token', 'keka_token'];
-            for (const key of possibleKeys) {
-              const t = localStorage.getItem(key);
-              if (t) return t;
-            }
-            for (const key of possibleKeys) {
-              const t = sessionStorage.getItem(key);
+            const keys = ['access_token', 'authToken', 'token', 'keka_token'];
+            for (const k of keys) {
+              const t = localStorage.getItem(k) || sessionStorage.getItem(k);
               if (t) return t;
             }
             return null;
@@ -37,38 +50,13 @@ async function findKekaToken() {
         });
         const token = results?.[0]?.result;
         if (token) {
-          console.log('Token found from Keka tab:', tab.url);
-          return { token, kekaBaseUrl: new URL(tab.url).origin };
+          const origin = new URL(tab.url).origin;
+          await chrome.storage.local.set({ at2_token: token, at2_token_ts: Date.now(), at2_keka_origin: origin });
+          console.log('Token found from live Keka tab:', tab.url);
+          return { token, kekaBaseUrl: origin };
         }
       } catch (err) {
-        // Tab might not be scriptable â€“ skip
         console.warn('Cannot script tab', tab.id, err.message);
-      }
-    }
-
-    // Fallback: try active tab
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (activeTab) {
-      try {
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: activeTab.id },
-          func: () => {
-            const possibleKeys = ['access_token', 'authToken', 'token', 'keka_token'];
-            for (const key of possibleKeys) {
-              const t = localStorage.getItem(key);
-              if (t) return t;
-            }
-            for (const key of possibleKeys) {
-              const t = sessionStorage.getItem(key);
-              if (t) return t;
-            }
-            return null;
-          }
-        });
-        const token = results?.[0]?.result;
-        if (token) return { token, kekaBaseUrl: activeTab.url.includes('keka.com') ? new URL(activeTab.url).origin : null };
-      } catch (e) {
-        console.warn('Active tab not scriptable:', e.message);
       }
     }
 
@@ -79,13 +67,10 @@ async function findKekaToken() {
   }
 }
 
-// â”€â”€â”€ Offline cache helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Offline cache helpers ---------------------------------------------------
 async function cacheAttendanceData(data) {
   await chrome.storage.local.set({
-    at2_cached_attendance: {
-      data,
-      timestamp: Date.now()
-    }
+    at2_cached_attendance: { data, timestamp: Date.now() }
   });
 }
 
@@ -94,48 +79,43 @@ async function getCachedAttendanceData() {
   return result.at2_cached_attendance || null;
 }
 
-// â”€â”€â”€ Streak helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Streak helpers ----------------------------------------------------------
 async function recordStreak(loginTimeStr) {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const result = await chrome.storage.local.get('at2_streak');
   const streak = result.at2_streak || { days: [], currentStreak: 0, bestStreak: 0 };
 
-  // Determine if "on-time" â€” before 10:00 AM counts as on-time
-  const parts = loginTimeStr.split(':');
-  const loginHour = parseInt(parts[0], 10);
-  const loginMin = parseInt(parts[1], 10);
-  const isOnTime = loginHour < 10 || (loginHour === 10 && loginMin === 0);
+  // On-time = logged in before or at 10:00 AM
+  const [h, m] = loginTimeStr.split(':').map(Number);
+  const isOnTime = h < 10 || (h === 10 && m === 0);
 
-  // Already recorded today?
+  // Don't double-count today
   if (streak.days.length > 0 && streak.days[streak.days.length - 1].date === today) {
-    return streak; // don't double-count
+    return streak;
   }
 
   streak.days.push({ date: today, onTime: isOnTime, login: loginTimeStr });
 
-  // Recalculate current streak from the end
+  // Recalculate current streak from the end, skipping weekends
   let current = 0;
   for (let i = streak.days.length - 1; i >= 0; i--) {
-    if (streak.days[i].onTime) {
-      current++;
-      // Check consecutive dates
-      if (i > 0) {
-        const prev = new Date(streak.days[i - 1].date);
-        const curr = new Date(streak.days[i].date);
-        const diffDays = (curr - prev) / (1000 * 60 * 60 * 24);
-        if (diffDays > 1) break; // gap in dates
-      }
-    } else {
-      break;
+    if (!streak.days[i].onTime) break;
+    current++;
+    if (i > 0) {
+      const prev = new Date(streak.days[i - 1].date);
+      const curr = new Date(streak.days[i].date);
+      const diffDays = (curr - prev) / (1000 * 60 * 60 * 24);
+      // Allow Friday->Monday gap (3 days) and Friday->Saturday->Monday (skip weekend)
+      const prevDay = prev.getUTCDay(); // 0=Sun, 5=Fri, 6=Sat
+      const maxAllowedGap = prevDay === 5 ? 3 : (prevDay === 4 ? 4 : 1); // Fri->Mon=3, Thu->Mon via long weekend edge
+      if (diffDays > maxAllowedGap) break;
     }
   }
   streak.currentStreak = current;
   streak.bestStreak = Math.max(streak.bestStreak, current);
 
   // Keep only last 90 days
-  if (streak.days.length > 90) {
-    streak.days = streak.days.slice(-90);
-  }
+  if (streak.days.length > 90) streak.days = streak.days.slice(-90);
 
   await chrome.storage.local.set({ at2_streak: streak });
   return streak;
@@ -146,16 +126,15 @@ async function getStreak() {
   return result.at2_streak || { days: [], currentStreak: 0, bestStreak: 0 };
 }
 
-// â”€â”€â”€ Notification helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Notification helpers ----------------------------------------------------
 async function scheduleLogoutNotifications(logoutTime9h) {
-  // Clear existing alarms first
   await chrome.alarms.clearAll();
 
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
-
-  // Build target Date from logoutTime9h {hours, minutes}
-  const target = new Date(`${todayStr}T${String(logoutTime9h.hours).padStart(2,'0')}:${String(logoutTime9h.minutes).padStart(2,'0')}:00`);
+  const target = new Date(
+    `${todayStr}T${String(logoutTime9h.hours).padStart(2, '0')}:${String(logoutTime9h.minutes).padStart(2, '0')}:00`
+  );
 
   const reminders = [
     { name: 'logout_30', minsBefore: 30, msg: '30 minutes until 9-hour logout!' },
@@ -168,11 +147,10 @@ async function scheduleLogoutNotifications(logoutTime9h) {
     const alarmTime = new Date(target.getTime() - r.minsBefore * 60 * 1000);
     if (alarmTime > now) {
       await chrome.alarms.create(r.name, { when: alarmTime.getTime() });
-      console.log(`Alarm "${r.name}" scheduled for`, alarmTime.toLocaleTimeString());
+      console.log(`Alarm "${r.name}" set for`, alarmTime.toLocaleTimeString());
     }
   }
 
-  // Also set a badge-update alarm every 1 minute
   await chrome.alarms.create('badge_update', { periodInMinutes: 1 });
 }
 
@@ -185,17 +163,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       logout_30: '30 minutes until your 9-hour logout time!',
       logout_15: '15 minutes until your 9-hour logout time!',
       logout_5:  '5 minutes until your 9-hour logout time! Wrap up!',
-      logout_0:  '9 hours complete â€” time to logout!'
+      logout_0:  '9 hours complete — time to logout!'
     };
-
-    const msg = messages[alarm.name] || 'Logout reminder';
-
     try {
       chrome.notifications.create(alarm.name + '_' + Date.now(), {
         type: 'basic',
         iconUrl: 'icons/icon128.png',
-        title: 'AT2 â€” Logout Reminder',
-        message: msg,
+        title: 'AT2 — Logout Reminder',
+        message: messages[alarm.name] || 'Logout reminder',
         priority: 2
       });
     } catch (err) {
@@ -208,16 +183,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-// Update badge with remaining time
+// --- Badge updater -----------------------------------------------------------
 async function updateBadge() {
   try {
     const cache = await getCachedAttendanceData();
     if (!cache?.data?.loginTime) { clearBadge(); return; }
 
-    const parts = cache.data.loginTime.split(':');
-    const loginH = parseInt(parts[0], 10);
-    const loginM = parseInt(parts[1], 10);
-    const loginTotal = loginH * 60 + loginM;
+    const [lh, lm] = cache.data.loginTime.split(':').map(Number);
+    const loginTotal = lh * 60 + lm;
     const now = new Date();
     const nowTotal = now.getHours() * 60 + now.getMinutes();
     let worked = nowTotal - loginTotal;
@@ -247,93 +220,73 @@ async function updateBadge() {
   }
 }
 
-// â”€â”€â”€ Message handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Message handling --------------------------------------------------------
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message.type);
 
   if (message.type === 'GET_TOKEN') {
-    // Auto-detect Keka tab (async)
     findKekaToken().then(({ token, kekaBaseUrl }) => {
       sendResponse({ token, success: !!token, kekaBaseUrl });
     }).catch(err => {
       console.error('GET_TOKEN error:', err);
       sendResponse({ token: null, success: false, kekaBaseUrl: null, error: err.message });
     });
-    return true; // async
+    return true;
   }
 
   if (message.type === 'CACHE_DATA') {
-    cacheAttendanceData(message.data).then(() => {
-      sendResponse({ success: true });
-    });
+    cacheAttendanceData(message.data).then(() => sendResponse({ success: true }));
     return true;
   }
 
   if (message.type === 'GET_CACHED_DATA') {
-    getCachedAttendanceData().then(cached => {
-      sendResponse({ success: true, cached });
-    });
+    getCachedAttendanceData().then(cached => sendResponse({ success: true, cached }));
     return true;
   }
 
   if (message.type === 'RECORD_STREAK') {
-    recordStreak(message.loginTime).then(streak => {
-      sendResponse({ success: true, streak });
-    });
+    recordStreak(message.loginTime).then(streak => sendResponse({ success: true, streak }));
     return true;
   }
 
   if (message.type === 'GET_STREAK') {
-    getStreak().then(streak => {
-      sendResponse({ success: true, streak });
-    });
+    getStreak().then(streak => sendResponse({ success: true, streak }));
     return true;
   }
 
   if (message.type === 'SCHEDULE_NOTIFICATIONS') {
-    scheduleLogoutNotifications(message.logoutTime).then(() => {
-      sendResponse({ success: true });
-    });
+    scheduleLogoutNotifications(message.logoutTime).then(() => sendResponse({ success: true }));
     return true;
   }
 
   if (message.type === 'CLEAR_NOTIFICATIONS') {
-    chrome.alarms.clearAll().then(() => {
-      clearBadge();
-      sendResponse({ success: true });
-    });
+    chrome.alarms.clearAll().then(() => { clearBadge(); sendResponse({ success: true }); });
     return true;
   }
 
   if (message.type === 'UPDATE_BADGE') {
-    updateBadge().then(() => {
-      sendResponse({ success: true });
-    });
+    updateBadge().then(() => sendResponse({ success: true }));
     return true;
   }
 
   if (message.type === 'GET_STATUS') {
-    sendResponse({
-      success: true,
-      status: { initialized: true, version: '2.1', timestamp: Date.now() }
-    });
+    sendResponse({ success: true, status: { initialized: true, version: '2.1', timestamp: Date.now() } });
     return false;
   }
 
-  // Default
   sendResponse({ success: false, error: 'Unknown message type' });
   return false;
 });
 
-// â”€â”€â”€ Startup / Install â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Startup / Install -------------------------------------------------------
 chrome.runtime.onInstalled.addListener((details) => {
   console.log('AT2 Extension installed/updated:', details.reason);
   if (details.reason === 'install') {
     chrome.notifications.create('welcome', {
       type: 'basic',
       iconUrl: 'icons/icon128.png',
-      title: 'AT2 â€” Installed!',
-      message: 'Click the extension icon while logged into Keka to get started.',
+      title: 'AT2 — Installed!',
+      message: 'Open Keka once to authorize, then the extension works even with Keka closed.',
       priority: 1
     });
   }
@@ -344,7 +297,5 @@ chrome.runtime.onStartup.addListener(() => {
   updateBadge();
 });
 
-// Initial badge update
 updateBadge();
-
 console.log('AT2 Background script ready');

@@ -115,13 +115,18 @@ class SimpleAT2 {
     }
 
     const data = await response.json();
-    const latest = data.data?.at(-1);
+
+    // Filter to today's record — API may return multiple days
+    const todayStr = new Date().toISOString().split('T')[0];
+    const latest = (data.data || []).find(r => r.firstLogOfTheDay?.startsWith(todayStr))
+      || data.data?.at(-1); // fallback to last entry if no exact match
 
     if (!latest || !latest.firstLogOfTheDay) {
       throw new Error('No attendance data found for today');
     }
 
-    const loginTime = latest.firstLogOfTheDay.split('T')[1];
+    // Strip milliseconds/timezone suffix: "09:30:00.000Z" -> "09:30:00"
+    const loginTime = latest.firstLogOfTheDay.split('T')[1].replace(/\.\d+Z?$/, '');
     return { loginTime, rawData: latest };
   }
 
